@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Нейро-Хаб</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{background:#05070F;color:#e5e7eb;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;
+background-image:radial-gradient(circle at 20% 0%,rgba(139,92,246,.14),transparent 45%),radial-gradient(circle at 85% 100%,rgba(6,182,212,.12),transparent 45%),linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
+background-size:auto,auto,36px 36px,36px 36px;background-attachment:fixed}
+.glass{background:rgba(15,20,35,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.08);border-radius:16px;transition:box-shadow .25s,transform .25s,border-color .25s;will-change:transform}
+.glass.hov:hover{transform:translateY(-3px);border-color:rgba(6,182,212,.4);box-shadow:0 0 15px rgba(6,182,212,.25)}
+.fade{animation:fade .35s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+mark{background:rgba(6,182,212,.3);color:#a5f3fc;border-radius:3px;padding:0 2px}
+.tab{padding:.5rem .9rem;border-radius:10px;font-size:.875rem;color:#9ca3af;transition:.2s;white-space:nowrap}
+.tab:hover{color:#fff}.tab.on{color:#06B6D4;background:rgba(6,182,212,.12);box-shadow:0 0 15px rgba(6,182,212,.2)}
+.chip{padding:.3rem .8rem;border-radius:999px;font-size:.8rem;border:1px solid rgba(255,255,255,.1);color:#9ca3af;transition:.2s}
+.chip.on{color:#06B6D4;border-color:#06B6D4;background:rgba(6,182,212,.1)}
+.btn{padding:.45rem .9rem;border-radius:10px;font-size:.85rem;border:1px solid rgba(255,255,255,.12);transition:.2s}
+.btn:hover{box-shadow:0 0 15px rgba(6,182,212,.35);border-color:#06B6D4}
+.inp{width:100%;background:rgba(5,7,15,.7);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:.55rem .8rem;color:#fff;outline:none;font-size:.9rem}
+.inp:focus{border-color:#06B6D4;box-shadow:0 0 12px rgba(6,182,212,.3)}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;transition:.3s;background:#10B981;color:#04110c;padding:.5rem 1rem;border-radius:10px;font-weight:600;pointer-events:none;z-index:50}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.bar{transition:width .6s cubic-bezier(.4,0,.2,1)}
+.nosb{scrollbar-width:none}.nosb::-webkit-scrollbar{display:none}
+</style>
+</head>
+<body>
+<header class="sticky top-0 z-40 glass !rounded-none border-x-0 border-t-0" style="top:0">
+ <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+  <div class="flex items-center gap-2 font-bold text-lg"><span class="text-[#8B5CF6]">◈</span> Нейро<span class="text-[#06B6D4]">-Хаб</span></div>
+  <nav id="nav" class="flex gap-1 overflow-x-auto nosb order-3 md:order-none w-full md:w-auto"></nav>
+  <div class="relative flex-1 min-w-[180px] md:ml-auto md:max-w-xs">
+   <input id="q" class="inp pl-9" placeholder="Поиск по инструментам и промтам…" autocomplete="off">
+   <svg class="absolute left-3 top-2.5 text-gray-500" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+  </div>
+ </div>
+</header>
+<main id="view" class="max-w-6xl mx-auto px-4 py-6"></main>
+<div id="toast">Скопировано!</div>
+
+<script>
+'use strict';
+const TOOLS=[
+{id:'mj',name:'Midjourney',cat:'Арт',v:1240,desc:'Генератор изображений через Discord и веб-интерфейс. Лидер по художественному качеству: кинематографичный свет, стилизация, концепт-арт. Подходит для брендинга, обложек и референсов.'},
+{id:'gpt',name:'ChatGPT',cat:'Текст',v:2310,desc:'Универсальный ассистент от OpenAI: тексты, анализ данных, код, голосовой режим и плагины. Отличный старт для любых рабочих задач и автоматизации рутины.'},
+{id:'cl',name:'Claude',cat:'Текст',v:1980,desc:'Нейросеть Anthropic с большим контекстным окном. Сильна в длинных документах, аккуратном письме, анализе и программировании. Хорошо следует сложным инструкциям.'},
+{id:'sd',name:'Stable Diffusion',cat:'Арт',v:870,desc:'Открытая модель генерации изображений, работает локально. Тонкая настройка через LoRA и ControlNet, полный контроль и отсутствие подписки.'},
+{id:'el',name:'ElevenLabs',cat:'Аудио',v:760,desc:'Реалистичный синтез речи и клонирование голоса на многих языках, включая русский. Озвучка видео, подкастов, аудиокниг и ИИ-аватаров.'},
+{id:'v0',name:'v0 by Vercel',cat:'Код',v:640,desc:'Генерирует интерфейсы на React и Tailwind по текстовому описанию или скриншоту. Быстрое прототипирование лендингов и дашбордов с готовым кодом.'},
+{id:'cu',name:'Cursor',cat:'Код',v:1120,desc:'Редактор кода со встроенным ИИ: автодополнение, правки по всему проекту, чат с кодовой базой. Заметно ускоряет разработку и рефакторинг.'},
+{id:'rw',name:'Runway',cat:'Видео',v:690,desc:'Платформа для генерации и редактирования видео: текст в видео, анимация изображений, удаление фона и motion-инструменты для креаторов.'},
+{id:'gm',name:'Gemini',cat:'Текст',v:1460,desc:'Мультимодальная модель Google: работает с текстом, изображениями, аудио и видео. Глубоко интегрирована в Google Workspace, Поиск и Android, удобна для анализа файлов и длинных документов.'},
+{id:'gk',name:'Grok',cat:'Текст',v:590,desc:'Нейросеть xAI с доступом к актуальным данным из соцсети X. Подходит для быстрого анализа новостей и трендов, умеет рассуждать пошагово и генерировать изображения.'},
+{id:'ds',name:'DeepSeek',cat:'Текст',v:930,desc:'Китайская модель с открытыми весами и сильными рассуждениями. Хорошо решает задачи по математике и программированию, доступна бесплатно и через недорогой API.'},
+{id:'px',name:'Perplexity',cat:'Текст',v:840,desc:'ИИ-поисковик, который отвечает со ссылками на источники. Удобен для быстрого исследования темы, проверки фактов и сбора материалов с актуальными данными.'},
+{id:'sn',name:'Suno',cat:'Аудио',v:710,desc:'Генерирует полноценные песни с вокалом и аранжировкой по текстовому описанию или собственным стихам. Подходит для джинглов, фоновой музыки и демо-треков.'},
+{id:'ld',name:'Leonardo AI',cat:'Арт',v:520,desc:'Платформа для генерации изображений с готовыми стилевыми моделями, холстом для доработки и инструментами для игровых ассетов, иллюстраций и товарных визуалов.'},
+{id:'cp',name:'GitHub Copilot',cat:'Код',v:1050,desc:'ИИ-помощник программиста прямо в IDE: подсказывает код, пишет тесты, объясняет чужие фрагменты и помогает с ревью pull request.'},
+{id:'hg',name:'HeyGen',cat:'Видео',v:600,desc:'Создаёт видео с говорящими ИИ-аватарами и автоматическим переводом с сохранением голоса и синхронизацией губ. Подходит для обучающих и продающих роликов.'},
+{id:'nb',name:'NotebookLM',cat:'Текст',v:480,desc:'Помощник Google для работы с вашими источниками: загрузите PDF, статьи и записи, получайте ответы с цитатами, конспекты и аудиообзор в формате подкаста.'}];
+const PROMPTS=[
+{id:'p1',title:'SEO-копирайтер',cat:'Маркетинг',text:'Ты — опытный SEO-копирайтер. Напиши статью на тему «[Тема статьи]» объёмом около [Объём] слов. Органично используй ключевые слова: [Ключевые слова]. Структура: цепляющий заголовок H1, вступление, 4–5 подзаголовков H2, выводы и призыв к действию. Тон: [Тон]. Добавь мета-описание до 160 символов.'},
+{id:'p2',title:'Аудит рекламной кампании',cat:'Маркетинг',text:'Действуй как performance-маркетолог. Проанализируй кампанию для продукта «[Продукт]» с бюджетом [Бюджет] и аудиторией [Аудитория]. Найди слабые места воронки, предложи 5 гипотез для A/B-тестов и расставь их по приоритету ICE.'},
+{id:'p3',title:'Код-ревьюер',cat:'Кодинг',text:'Ты — Senior-разработчик на [Язык]. Проведи ревью кода ниже: найди баги, уязвимости и проблемы производительности, предложи рефакторинг с объяснением. Формат ответа: «Критично», «Важно», «Улучшения».\n\n[Код]'},
+{id:'p4',title:'Архитектор приложения',cat:'Кодинг',text:'Выступи как системный архитектор. Спроектируй архитектуру приложения «[Приложение]» для [Нагрузка] пользователей. Опиши компоненты, стек ([Стек]), схему данных, риски и план масштабирования по этапам.'},
+{id:'p5',title:'Промт для Midjourney',cat:'Арт',text:'Создай 4 детальных промта для Midjourney: сцена «[Сцена]», стиль [Стиль], освещение [Свет]. Для каждого укажи композицию, ракурс, палитру и параметры --ar 16:9 --v 6 --style raw.'},
+{id:'p6',title:'Арт-директор бренда',cat:'Арт',text:'Ты — арт-директор. Разработай визуальную концепцию бренда «[Бренд]» в нише [Ниша]: настроение, палитра HEX, типографика, правила использования логотипа и 3 референса для генерации изображений нейросетью.'},
+{id:'p7',title:'Email-цепочка продаж',cat:'Маркетинг',text:'Ты — email-маркетолог. Напиши цепочку из [Количество писем] писем для продукта «[Продукт]», аудитория: [Аудитория]. Для каждого письма дай тему (3 варианта), прехедер, основной текст и один чёткий призыв к действию. Тон: [Тон].'},
+{id:'p8',title:'Контент-план для соцсетей',cat:'Маркетинг',text:'Составь контент-план на [Срок] для бренда «[Бренд]» в платформе [Платформа]. Цель: [Цель]. Дай таблицу: дата, формат, тема, идея заголовка, призыв к действию. Добавь 3 рубрики, которые повторяются.'},
+{id:'p9',title:'Генератор юнит-тестов',cat:'Кодинг',text:'Ты — QA-инженер. Напиши юнит-тесты на [Фреймворк] для кода ниже. Покрой основные сценарии, граничные случаи и ошибки. После тестов перечисли, что осталось непокрытым.\n\n[Код]'},
+{id:'p10',title:'SQL-помощник',cat:'Кодинг',text:'Ты — эксперт по базам данных [СУБД]. Схема таблиц: [Схема]. Напиши запрос, который решает задачу: [Задача]. Объясни логику по шагам и предложи индексы для ускорения.'},
+{id:'p11',title:'Сториборд для ролика',cat:'Арт',text:'Ты — режиссёр рекламных роликов. Разработай сториборд на [Хронометраж] секунд для продукта «[Продукт]» в стиле [Стиль]. Для каждого кадра опиши план, действие, текст за кадром и промт для генерации картинки в нейросети.'},
+{id:'p12',title:'Набор иконок и логотипов',cat:'Арт',text:'Создай 5 промтов для генерации набора иконок для [Тематика] в едином стиле [Стиль]. Укажи палитру [Палитра], фон, толщину линий и требования к читаемости в малом размере.'}];
+const STEPS=[
+{t:'Определите образ и сценарий',d:'Выберите роль аватара (ведущий, эксперт, поддержка), возраст, манеру речи. Напишите короткий сценарий на 30–60 секунд с помощью Claude или ChatGPT.'},
+{t:'Сгенерируйте внешность',d:'В Midjourney создайте портрет в анфас с нейтральным фоном и мягким светом. Сохраните 3–4 лучших варианта в высоком разрешении.'},
+{t:'Клонируйте или выберите голос',d:'В ElevenLabs загрузите образец голоса либо выберите готовый. Озвучьте сценарий и проверьте ударения и паузы.'},
+{t:'Оживите аватар',d:'Загрузите портрет и аудио в сервис липсинка (например HeyGen) или в Runway. Проверьте синхронизацию губ и мимику.'},
+{t:'Смонтируйте и опубликуйте',d:'Добавьте субтитры, музыку и заставку, экспортируйте ролик в 1080p и опубликуйте. Соберите обратную связь и улучшайте образ.'}];
+const CATS=['Все','Текст','Арт','Код','Аудио','Видео','Дизайн','Продуктивность'];
+[
+['mi','Mistral','Текст',410,'Европейская ИИ-лаборатория с быстрыми моделями и открытыми весами. Хороша для многоязычных задач и встраивания в собственные продукты через API.'],
+['ll','Llama','Текст',560,'Семейство открытых моделей Meta. Можно запускать на своих серверах и дообучать под задачу, сохраняя контроль над данными.'],
+['mc','Microsoft Copilot','Текст',520,'Ассистент Microsoft, встроенный в Windows, Edge и Office. Помогает писать письма, строить таблицы и готовить презентации.'],
+['po','Poe','Текст',300,'Агрегатор чат-ботов: в одном интерфейсе доступны разные модели, удобно сравнивать ответы и создавать собственных ботов.'],
+['ch','Character.AI','Текст',450,'Чаты с ИИ-персонажами и создание собственных героев. Используется для ролевых игр, практики языков и развлечения.'],
+['ja','Jasper','Текст',270,'Маркетинговая платформа для текстов: бренд-голос, шаблоны для рекламы, постов и писем, командная работа над кампаниями.'],
+['gr','Grammarly','Текст',380,'Проверяет грамотность и стиль английских текстов, подсказывает тон и помогает переписывать фразы прямо в браузере и почте.'],
+['dl','DeepL','Текст',440,'Сервис перевода с очень естественным звучанием. Переводит документы с сохранением форматирования и умеет улучшать стиль письма.'],
+['nt','Notion AI','Продуктивность',390,'ИИ внутри Notion: конспекты встреч, черновики, автозаполнение баз данных и поиск ответов по вашим заметкам.'],
+['gam','Gamma','Продуктивность',350,'Создаёт презентации, документы и сайты по короткому описанию. Быстро даёт аккуратный дизайн, который легко править.'],
+['za','Zapier AI','Продуктивность',290,'Автоматизация между тысячами приложений. ИИ собирает цепочки действий из описания на обычном языке без программирования.'],
+['mk','Make','Продуктивность',260,'Визуальный конструктор сценариев автоматизации с ИИ-модулями. Гибче в логике и ветвлениях, чем простые триггеры.'],
+['ff','Fireflies.ai','Продуктивность',240,'Записывает и расшифровывает встречи, выделяет задачи и итоги, позволяет искать по архиву звонков команды.'],
+['ot','Otter.ai','Аудио',310,'Транскрибация разговоров в реальном времени с разметкой по спикерам, автоматическими конспектами и поиском по тексту.'],
+['wh','Whisper','Аудио',480,'Открытая модель распознавания речи от OpenAI. Точно расшифровывает аудио на десятках языков, работает локально.'],
+['ud','Udio','Аудио',330,'Генератор музыки с высоким качеством звучания. Создаёт треки в разных жанрах по описанию, поддерживает продолжение и ремикс.'],
+['de','Descript','Видео',280,'Монтаж видео и подкастов через редактирование текста. Удаляет слова-паразиты, клонирует голос и записывает экран.'],
+['pk','Pika','Видео',320,'Генерация коротких роликов из текста и картинок с эффектами: изменение объектов, анимация и стилизация сцен.'],
+['lu','Luma Dream Machine','Видео',360,'Модель для реалистичных видео с физически правдоподобным движением. Оживляет изображения и строит кадры по описанию.'],
+['kl','Kling','Видео',400,'Видеомодель с высокой детализацией и длинными плавными сценами. Хорошо передаёт движение людей и камеры.'],
+['sy','Synthesia','Видео',340,'Видео с ИИ-ведущими на 100+ языках без съёмок. Популярна для корпоративного обучения и инструкций.'],
+['cc','CapCut','Видео',500,'Видеоредактор с ИИ-функциями: авто-субтитры, удаление фона, шаблоны и озвучка. Удобен для коротких вертикальных роликов.'],
+['de3','DALL·E 3','Арт',620,'Генератор изображений OpenAI внутри ChatGPT. Хорошо понимает длинные описания и аккуратно размещает текст на картинках.'],
+['af','Adobe Firefly','Арт',430,'Генеративные инструменты Adobe, обученные на лицензионном контенте. Интегрированы в Photoshop: заливка, расширение и замена объектов.'],
+['id','Ideogram','Арт',370,'Генератор изображений, лучше многих справляется с надписями. Удобен для постеров, логотипов и открыток.'],
+['fx','Flux','Арт',460,'Современная модель генерации изображений с высокой фотореалистичностью. Есть открытые версии, подходящие для локального запуска.'],
+['kr','Krea','Арт',250,'Генерация в реальном времени: рисуете эскиз, и результат обновляется на лету. Также повышает разрешение изображений.'],
+['cv','Canva Magic Studio','Дизайн',580,'ИИ-функции Canva: генерация макетов, магическое редактирование фото, расширение фона и быстрые шаблоны для соцсетей.'],
+['ui','Uizard','Дизайн',190,'Превращает наброски и текст в интерактивные прототипы приложений и сайтов. Подходит продактам без навыков дизайна.'],
+['rp','Replit','Код',420,'Облачная среда разработки с ИИ-агентом: описываете приложение, а система пишет, запускает и публикует его в браузере.'],
+['bo','Bolt.new','Код',380,'Создаёт полноценные веб-приложения по описанию прямо в браузере, с установкой пакетов и мгновенным предпросмотром.'],
+['lo','Lovable','Код',350,'Собирает интерфейс и бэкенд по диалогу. Синхронизируется с GitHub, подходит для быстрых MVP без глубокого кода.'],
+['wi','Windsurf','Код',310,'ИИ-редактор кода с агентным режимом, который сам правит несколько файлов и запускает команды по вашей задаче.'],
+['tb','Tabnine','Код',200,'Автодополнение кода с упором на приватность: можно работать локально и обучать модель на репозиториях своей компании.'],
+['dv','Devin','Код',280,'Автономный ИИ-инженер: берёт задачу, планирует, пишет код, запускает тесты и отправляет готовый pull request.']
+].forEach(a=>TOOLS.push({id:a[0],name:a[1],cat:a[2],v:a[3],desc:a[4]}));
+[
+['p13','Анализ конкурентов','Бизнес','Ты — стратегический аналитик. Сравни компанию «[Компания]» с конкурентами [Конкуренты] на рынке [Рынок]. Дай таблицу по продукту, цене, каналам, сильным и слабым сторонам, затем 5 возможностей для выхода вперёд.'],
+['p14','Бизнес-план за час','Бизнес','Ты — консультант по запуску бизнеса. Составь краткий бизнес-план идеи «[Идея]» для рынка [Рынок]: проблема, решение, аудитория, модель дохода, затраты, риски и метрики на первые [Срок].'],
+['p15','Питч для инвесторов','Бизнес','Напиши структуру питча на 10 слайдов для стартапа «[Стартап]» в нише [Ниша]. К каждому слайду дай ключевой тезис, данные для подтверждения и возможный вопрос инвестора с ответом.'],
+['p16','Скрипт холодного звонка','Маркетинг','Ты — руководитель продаж. Напиши скрипт холодного звонка для продажи [Продукт] должности [Должность клиента]. Включи приветствие, цепляющий вопрос, обработку 5 возражений и закрытие на встречу.'],
+['p17','Продающее описание товара','Маркетинг','Напиши продающее описание товара «[Товар]» для маркетплейса. Аудитория: [Аудитория]. Выгоды: [Выгоды]. Структура: заголовок, 5 пунктов преимуществ, характеристики, ответы на 3 частых вопроса.'],
+['p18','Сценарий Reels и Shorts','Маркетинг','Ты — сценарист коротких видео. Напиши 3 сценария ролика до [Длительность] секунд на тему «[Тема]» для [Платформа]. Для каждого: хук на первые 3 секунды, раскадровка, текст на экране и призыв к действию.'],
+['p19','Заголовки и офферы','Маркетинг','Придумай 15 заголовков и 5 офферов для продукта «[Продукт]». Применяй разные приёмы: выгода, любопытство, срочность, социальное доказательство. Отметь 3 лучших и объясни почему.'],
+['p20','Объяснение кода','Кодинг','Ты — наставник по программированию. Объясни код ниже простым языком по строкам уровня [Уровень]. Покажи общую идею, возможные ошибки и как улучшить.\n\n[Код]'],
+['p21','Поиск причины бага','Кодинг','Помоги найти причину бага на [Язык]. Ожидаемое поведение: [Ожидание]. Фактическое: [Факт]. Сообщение об ошибке: [Ошибка]. Предложи 5 гипотез по вероятности и способ проверки каждой.'],
+['p22','Документация к API','Кодинг','Ты — технический писатель. Составь документацию к API на основе описания ниже: назначение, аутентификация, таблица эндпоинтов, примеры запросов и ответов на [Язык], коды ошибок.\n\n[Описание API]'],
+['p23','Оптимизация производительности','Кодинг','Ты — инженер по производительности. Проанализируй код на [Язык] и найди узкие места по времени и памяти. Предложи оптимизации с оценкой выигрыша и оцени риски.\n\n[Код]'],
+['p24','Парсер и регулярные выражения','Кодинг','Напиши регулярное выражение для задачи: [Задача]. Приведи разбор по частям, 5 примеров совпадений и 5 несовпадений, а также версию для языка [Язык].'],
+['p25','Персонаж для генерации','Арт','Создай подробное описание персонажа «[Персонаж]» для генерации изображений: внешность, одежда, поза, эмоция, стиль [Стиль]. Затем напиши 3 промта на английском для разных ракурсов с одинаковыми деталями.'],
+['p26','Продуктовая фотосъёмка','Арт','Составь промт для имитации студийной съёмки товара «[Товар]»: фон [Фон], освещение, объектив, ракурс, отражения и тени. Дай 3 варианта для каталога, рекламы и соцсетей.'],
+['p27','Репетитор по теме','Обучение','Ты — терпеливый репетитор. Объясни тему «[Тема]» для уровня [Уровень]: сначала простая аналогия, затем основные понятия, пример и 5 вопросов для самопроверки с ответами в конце.'],
+['p28','План изучения за N недель','Обучение','Составь недельный план изучения «[Навык]» за [Срок] при занятиях [Время в неделю]. Для каждой недели укажи цели, ресурсы, практическое задание и критерий успеха.'],
+['p29','Конспект и карточки','Обучение','Сделай из текста ниже краткий конспект, ключевые термины и 15 карточек «вопрос — ответ» для запоминания. Выдели то, что чаще всего путают.\n\n[Текст]'],
+['p30','Анализ данных и выводы','Аналитика','Ты — аналитик данных. Вот данные: [Данные]. Цель: [Цель]. Опиши ключевые закономерности, аномалии и предложи 3 гипотезы и 3 действия с оценкой влияния. Отдельно перечисли ограничения анализа.']
+].forEach(a=>PROMPTS.push({id:a[0],title:a[1],cat:a[2],text:a[3]}));
+const TABS=[['dash','Дашборд'],['cat','Каталог ИИ'],['pr','Конструктор промтов'],['learn','Центр обучения']];
+const KEY='neurohub.v1';
+const S={tab:'dash',q:'',cat:'Все',price:'Все',onlyFav:false,favs:[],votes:{},voted:[],done:[],cp:0,vals:{}};
+(function load(){try{const d=JSON.parse(localStorage.getItem(KEY)||'{}');['favs','votes','voted','done'].forEach(k=>{if(d[k])S[k]=d[k]})}catch(e){}})();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({favs:S.favs,votes:S.votes,voted:S.voted,done:S.done}))}catch(e){}};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rx=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const hl=t=>{t=esc(t);return S.q?t.replace(new RegExp('('+rx(esc(S.q.trim()))+')','gi'),'<mark>$1</mark>'):t};
+const hit=o=>!S.q.trim()||(o.name||o.title)&&((o.name||o.title)+o.desc+o.cat+(o.text||'')).toLowerCase().includes(S.q.trim().toLowerCase());
+const votes=t=>t.v+(S.votes[t.id]||0);
+const ic={
+star:f=>`<svg width="18" height="18" viewBox="0 0 24 24" fill="${f?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>`,
+up:f=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="${f?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`,
+copy:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>`,
+lock:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`,
+check:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-10"/></svg>`};
+
+function toast(msg){const t=$('#toast');t.textContent=msg||'Скопировано!';t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),1400)}
+function copy(text){
+ const ok=()=>toast('Скопировано!');
+ const fb=()=>{const a=document.createElement('textarea');a.value=text;a.style.cssText='position:fixed;opacity:0';document.body.appendChild(a);a.select();try{document.execCommand('copy');ok()}catch(e){toast('Не удалось скопировать')}a.remove()};
+ if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,fb);else fb();
+}
+const progress=()=>Math.round(S.done.length/STEPS.length*100);
+
+function renderNav(){
+ const nt=TOOLS.filter(hit).length,np=PROMPTS.filter(hit).length;
+ $('#nav').innerHTML=TABS.map(([k,n])=>{
+  const b=S.q.trim()&&(k==='cat'||k==='pr')?` <span class="text-[#10B981] text-xs">${k==='cat'?nt:np}</span>`:'';
+  return `<button class="tab ${S.tab===k?'on':''}" data-tab="${k}">${n}${b}</button>`}).join('');
+}
+function dash(){
+ const top=[...TOOLS].sort((a,b)=>votes(b)-votes(a))[0],p=progress();
+ const st=[['Инструментов',TOOLS.length,'#10B981'],['В избранном',S.favs.length,'#06B6D4'],['Промтов',PROMPTS.length,'#8B5CF6'],['Прогресс обучения',p+'%','#10B981']];
+ return `<div class="fade"><h1 class="text-2xl md:text-3xl font-bold mb-1">Добро пожаловать в <span class="text-[#06B6D4]">Нейро-Хаб</span></h1>
+ <p class="text-gray-400 mb-6">Каталог нейросетей, готовые промты и пошаговые руководства в одном месте.</p>
+ <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">${st.map(s=>`<div class="glass hov p-4"><div class="text-3xl font-bold" style="color:${s[2]}">${s[1]}</div><div class="text-sm text-gray-400">${s[0]}</div></div>`).join('')}</div>
+ <div class="grid md:grid-cols-2 gap-4">
+  <div class="glass p-5"><div class="text-sm text-gray-400 mb-1">Любимец сообщества</div><div class="text-xl font-semibold text-[#10B981]">${top.name}</div><p class="text-sm text-gray-400 mt-1">${top.desc.slice(0,110)}…</p><div class="mt-3 text-sm">👍 ${votes(top)} голосов</div></div>
+  <div class="glass p-5"><div class="text-sm text-gray-400 mb-2">Курс: «Создание ИИ-аватара с нуля»</div>
+   <div class="h-2 bg-white/10 rounded-full overflow-hidden"><div class="bar h-full bg-[#10B981]" style="width:${p}%;box-shadow:0 0 12px #10B981"></div></div>
+   <div class="text-sm mt-2 text-gray-400">Пройдено ${S.done.length} из ${STEPS.length} шагов</div>
+   <button class="btn mt-3" data-tab="learn">${S.done.length?'Продолжить':'Начать обучение'}</button></div>
+ </div></div>`;
+}
+const SITES={mj:'midjourney.com',gpt:'chatgpt.com',cl:'claude.ai',sd:'stability.ai',el:'elevenlabs.io',v0:'v0.dev',cu:'cursor.com',rw:'runwayml.com',gm:'gemini.google.com',gk:'grok.com',ds:'deepseek.com',px:'perplexity.ai',sn:'suno.com',ld:'leonardo.ai',cp:'github.com/features/copilot',hg:'heygen.com',nb:'notebooklm.google',mi:'mistral.ai',ll:'llama.com',mc:'copilot.microsoft.com',po:'poe.com',ch:'character.ai',ja:'jasper.ai',gr:'grammarly.com',dl:'deepl.com',nt:'notion.com',gam:'gamma.app',za:'zapier.com',mk:'make.com',ff:'fireflies.ai',ot:'otter.ai',wh:'github.com/openai/whisper',ud:'udio.com',de:'descript.com',pk:'pika.art',lu:'lumalabs.ai',kl:'klingai.com',sy:'synthesia.io',cc:'capcut.com',de3:'openai.com/index/dall-e-3',af:'firefly.adobe.com',id:'ideogram.ai',fx:'bfl.ai',kr:'krea.ai',cv:'canva.com',ui:'uizard.io',rp:'replit.com',bo:'bolt.new',lo:'lovable.dev',wi:'windsurf.com',tb:'tabnine.com',dv:'devin.ai'};
+const siteUrl=t=>SITES[t.id]?'https://'+SITES[t.id]:'https://www.google.com/search?q='+encodeURIComponent(t.name);
+const PRICES=['Все','Бесплатно','Условно бесплатно','Платно'];
+const FREE=['sd','wh','ll','ds','nb'],PAID=['mj','dv','ja','sy','tb'];
+const tier=t=>FREE.includes(t.id)?'Бесплатно':PAID.includes(t.id)?'Платно':'Условно бесплатно';
+const TCLS={'Бесплатно':'bg-[#10B981]/15 text-[#10B981]','Условно бесплатно':'bg-[#06B6D4]/15 text-[#06B6D4]','Платно':'bg-[#8B5CF6]/20 text-[#8B5CF6]'};
+function toolCard(t){
+ const f=S.favs.includes(t.id),vd=S.voted.includes(t.id);
+ return `<article class="glass hov p-5 flex flex-col">
+  <div class="flex items-start justify-between gap-2"><div><h3 class="font-semibold text-lg">${hl(t.name)}</h3><div class="flex flex-wrap gap-1 mt-1"><span class="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-300">${hl(t.cat)}</span><span class="text-xs px-2 py-0.5 rounded-full ${TCLS[tier(t)]}">${tier(t)}</span></div></div>
+  <button data-fav="${t.id}" aria-label="В закладки" class="p-2 rounded-lg transition ${f?'text-[#10B981] shadow-[0_0_15px_rgba(16,185,129,.4)]':'text-gray-500 hover:text-[#06B6D4]'}">${ic.star(f)}</button></div>
+  <p class="text-sm text-gray-400 mt-3 flex-1">${hl(t.desc)}</p>
+  <div class="mt-4 flex flex-wrap gap-2"><button data-vote="${t.id}" class="btn flex items-center gap-2 ${vd?'text-[#06B6D4] border-[#06B6D4]':''}">${ic.up(vd)} Голосовать · <b>${votes(t)}</b></button>
+  <a href="${siteUrl(t)}" target="_blank" rel="noopener noreferrer" class="btn flex items-center gap-1.5 text-[#10B981]">Открыть сайт <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg></a></div></article>`;
+}
+function catalog(){
+ const list=TOOLS.filter(t=>hit(t)&&(S.cat==='Все'||t.cat===S.cat)&&(S.price==='Все'||tier(t)===S.price)&&(!S.onlyFav||S.favs.includes(t.id)));
+ return `<div class="fade"><div class="flex flex-wrap items-center gap-2 mb-3"><span class="text-sm text-gray-500 mr-1">Стоимость:</span>${PRICES.map(p=>`<button class="chip ${S.price===p?'on':''}" data-price="${p}">${p}${p==='Все'?'':' ('+TOOLS.filter(t=>tier(t)===p).length+')'}</button>`).join('')}</div><div class="flex flex-wrap items-center gap-2 mb-5">${CATS.map(c=>`<button class="chip ${S.cat===c?'on':''}" data-cat="${c}">${c}</button>`).join('')}
+ <label class="ml-auto flex items-center gap-2 text-sm cursor-pointer select-none"><input type="checkbox" id="fav" ${S.onlyFav?'checked':''} class="accent-emerald-500"> Только избранное</label></div>
+ ${list.length?`<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">${list.map(toolCard).join('')}</div>`:`<div class="glass p-8 text-center text-gray-400">Ничего не найдено. Измените запрос или фильтры.</div>`}</div>`;
+}
+function promptCard(p){
+ return `<article class="glass hov p-5 flex flex-col"><div class="flex items-center justify-between mb-2"><h3 class="font-semibold">${hl(p.title)}</h3><span class="text-xs px-2 py-0.5 rounded-full bg-[#8B5CF6]/20 text-[#8B5CF6]">${hl(p.cat)}</span></div>
+ <p class="text-sm text-gray-400 flex-1 whitespace-pre-line">${hl(p.text)}</p>
+ <div class="flex gap-2 mt-4"><button class="btn flex items-center gap-2" data-copy="${p.id}">${ic.copy} Копировать</button><button class="btn text-[#8B5CF6]" data-use="${p.id}">В конструктор</button></div></article>`;
+}
+function keys(p){return [...new Set((p.text.match(/\[([^\]]+)\]/g)||[]).map(s=>s.slice(1,-1)))]}
+function build(){const p=PROMPTS[S.cp];return p.text.replace(/\[([^\]]+)\]/g,(m,k)=>(S.vals[k]||'').trim()||m)}
+function prompts(){
+ const list=PROMPTS.filter(hit),p=PROMPTS[S.cp];
+ return `<div class="fade"><h2 class="text-xl font-semibold mb-3 text-[#8B5CF6]">Библиотека промтов</h2>
+ ${list.length?`<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${list.map(promptCard).join('')}</div>`:`<div class="glass p-8 text-center text-gray-400">Промты не найдены.</div>`}
+ <h2 class="text-xl font-semibold mt-8 mb-3 text-[#06B6D4]">Живой кастомизатор</h2>
+ <div class="glass p-5 grid md:grid-cols-2 gap-5"><div><label class="text-sm text-gray-400">Шаблон</label>
+  <select id="tpl" class="inp mb-3 mt-1">${PROMPTS.map((x,i)=>`<option value="${i}" ${i===S.cp?'selected':''}>${esc(x.title)}</option>`).join('')}</select>
+  <div id="fields" class="space-y-3">${keys(p).map(k=>`<div><label class="text-sm text-gray-400">${esc(k)}</label>${k==='Код'?`<textarea rows="4" class="inp mt-1" data-k="${esc(k)}" placeholder="Введите: ${esc(k)}">${esc(S.vals[k]||'')}</textarea>`:`<input class="inp mt-1" data-k="${esc(k)}" value="${esc(S.vals[k]||'')}" placeholder="Введите: ${esc(k)}">`}</div>`).join('')}</div></div>
+  <div><div class="text-sm text-gray-400 mb-1">Предпросмотр</div><div id="prev" class="inp !h-auto min-h-[160px] whitespace-pre-wrap text-gray-200">${esc(build())}</div>
+  <button class="btn mt-3 flex items-center gap-2 text-[#10B981]" data-copyprev>${ic.copy} Копировать результат</button></div></div></div>`;
+}
+function learn(){
+ const p=progress();
+ return `<div class="fade max-w-3xl mx-auto"><h2 class="text-xl font-semibold mb-1">Создание ИИ-аватара с нуля</h2>
+ <p class="text-gray-400 text-sm mb-4">Выполняйте шаги по порядку — следующий откроется после завершения текущего.</p>
+ <div class="glass p-4 mb-5"><div class="flex justify-between text-sm mb-2"><span>Прогресс</span><span class="text-[#10B981] font-semibold">${p}%</span></div>
+ <div class="h-2.5 bg-white/10 rounded-full overflow-hidden"><div class="bar h-full bg-gradient-to-r from-[#06B6D4] to-[#10B981]" style="width:${p}%;box-shadow:0 0 14px #10B981"></div></div></div>
+ <div class="space-y-3">${STEPS.map((s,i)=>{
+  const done=S.done.includes(i),open=i===0||S.done.includes(i-1);
+  return `<div class="glass p-4 ${open?'':'opacity-50'} ${done?'!border-[#10B981]/50':''}"><div class="flex items-center gap-3">
+  <div class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${done?'bg-[#10B981] text-black':open?'bg-[#06B6D4]/20 text-[#06B6D4]':'bg-white/10 text-gray-500'}">${done?ic.check:open?i+1:ic.lock}</div>
+  <h3 class="font-semibold">Шаг ${i+1}. ${s.t}</h3></div>
+  ${open?`<div class="fade pl-12 mt-2"><p class="text-sm text-gray-400">${s.d}</p>${done?`<div class="text-[#10B981] text-sm mt-2">Шаг выполнен ✓</div>`:`<button class="btn mt-3 text-[#10B981]" data-done="${i}">Шаг выполнен</button>`}</div>`:`<p class="pl-12 mt-1 text-xs text-gray-500">Заблокировано до выполнения предыдущего шага</p>`}</div>`}).join('')}</div>
+ ${p===100?`<div class="glass p-4 mt-4 text-center text-[#10B981]">🎉 Поздравляем! Курс пройден.</div>`:''}
+ <button class="btn mt-4 text-gray-400" data-reset>Сбросить прогресс</button></div>`;
+}
+function render(){
+ renderNav();
+ $('#view').innerHTML=({dash,cat:catalog,pr:prompts,learn})[S.tab]();
+}
+function go(t){S.tab=t;render();window.scrollTo({top:0,behavior:'smooth'})}
+
+document.addEventListener('click',e=>{
+ const g=a=>e.target.closest('['+a+']');let el;
+ if(el=g('data-tab'))return go(el.dataset.tab);
+ if(el=g('data-cat')){S.cat=el.dataset.cat;return render()}
+ if(el=g('data-price')){S.price=el.dataset.price;return render()}
+ if(el=g('data-fav')){const id=el.dataset.fav,i=S.favs.indexOf(id);i>-1?S.favs.splice(i,1):S.favs.push(id);save();return render()}
+ if(el=g('data-vote')){const id=el.dataset.vote,i=S.voted.indexOf(id);
+  if(i>-1){S.voted.splice(i,1);S.votes[id]=(S.votes[id]||0)-1}else{S.voted.push(id);S.votes[id]=(S.votes[id]||0)+1}
+  save();return render()}
+ if(el=g('data-copy'))return copy(PROMPTS.find(p=>p.id===el.dataset.copy).text);
+ if(el=g('data-use')){S.cp=PROMPTS.findIndex(p=>p.id===el.dataset.use);S.vals={};render();$('#tpl').scrollIntoView({behavior:'smooth',block:'center'});return}
+ if(g('data-copyprev'))return copy(build());
+ if(el=g('data-done')){const i=+el.dataset.done;if(!S.done.includes(i))S.done.push(i);save();return render()}
+ if(g('data-reset')){S.done=[];save();return render()}
+});
+document.addEventListener('change',e=>{
+ if(e.target.id==='fav'){S.onlyFav=e.target.checked;render()}
+ if(e.target.id==='tpl'){S.cp=+e.target.value;S.vals={};render()}
+});
+document.addEventListener('input',e=>{
+ if(e.target.dataset&&e.target.dataset.k){S.vals[e.target.dataset.k]=e.target.value;$('#prev').textContent=build()}
+});
+let qt;
+$('#q').addEventListener('input',e=>{
+ S.q=e.target.value;clearTimeout(qt);
+ qt=setTimeout(()=>{if(S.q.trim()&&(S.tab==='dash'||S.tab==='learn'))S.tab='cat';render()},120);
+});
+render();
+</script>
+</body>
+</html>
